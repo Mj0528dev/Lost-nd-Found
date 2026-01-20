@@ -133,7 +133,7 @@ def admin_verify_claim(claim_id):
 
     return verify_claim(claim_id, decision, admin_username)
 
-
-
 if __name__ == "__main__":
+    from models import init_db
+    init_db()  # create tables if they don't exist
     app.run(debug=True, host="0.0.0.0", port=5000)
