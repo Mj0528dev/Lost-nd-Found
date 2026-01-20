@@ -1,8 +1,26 @@
 SCORING_RULES = {
-    "category": 25,
-    "item_type": 25,
-    "brand": 15,
-    "color": 10,
-    "location": 15,
-    "private_details": 10
+    "category": {
+        "weight": 30,
+        "tolerance": "exact"
+    },
+    "item_type": {
+        "weight": 25,
+        "tolerance": "contains"
+    },
+    "brand": {
+        "weight": 20,
+        "tolerance": "contains"
+    },
+    "color": {
+        "weight": 15,
+        "tolerance": "contains"
+    },
+    "location": {
+        "weight": 10,
+        "tolerance": "contains"
+    },
+    "private_details": {
+        "weight": 40,
+        "tolerance": "contains"
+    }
 }

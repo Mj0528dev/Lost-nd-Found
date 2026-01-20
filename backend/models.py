@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime, timezone
 from services.claim_scoring import compute_claim_score
@@ -98,21 +99,23 @@ def create_lost_item(data):
 
     cursor.execute("""
         INSERT INTO lost_items (
-            category, item_type, color, brand,
-            last_seen_location, last_seen_datetime,
-            public_description, private_details,
-            status, created_at
+            category,
+            item_type,
+            last_seen_location,
+            last_seen_datetime,
+            public_description,
+            private_details,
+            status,
+            created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data["category"],
-        data["item_type"],
-        data.get("color"),
-        data.get("brand"),
+        data.get("item_type", "Unknown"),
         data["last_seen_location"],
-        data["last_seen_datetime"],
-        data.get("public_description"),
-        data["private_details"],
+        data["lost_datetime"],
+        data["public_description"],
+        data.get("private_details"),
         "published",
         datetime.now(timezone.utc).isoformat()
     ))
@@ -133,7 +136,7 @@ def create_found_item(data):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         data["category"],
-        data["item_type"],
+        data.get("item_type", "Unknown"),
         data.get("color"),
         data.get("brand"),
         data["found_location"],
@@ -175,38 +178,6 @@ def get_found_item_by_id(item_id):
 
     return dict(row) if row else None
 
-def compute_claim_score(claim_data, found_item):
-    score = 0
-
-    SCORING_RULES = {
-    "category": 25,
-    "item_type": 25,
-    "brand": 15,
-    "color": 10,
-    "location": 15,
-    "private_details": 10
-}
-    def normalize(value):
-        return value.strip().lower() if value else None
-
-    def matches(a, b):
-        return normalize(a) == normalize(b)
-
-    comparisons = [
-        ("claimed_category", found_item["category"], SCORING_RULES["category"]),
-        ("claimed_item_type", found_item["item_type"], SCORING_RULES["item_type"]),
-        ("claimed_brand", found_item["brand"], SCORING_RULES["brand"]),
-        ("claimed_color", found_item["color"], SCORING_RULES["color"]),
-        ("claimed_location", found_item["found_location"], SCORING_RULES["location"]),
-        ("claimed_private_details", found_item["public_description"], SCORING_RULES["private_details"]),
-    ]
-
-    for claim_key, found_value, weight in comparisons:
-        if matches(claim_data.get(claim_key), found_value):
-            score += weight
-
-    return score
-
 def create_claim(data):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -231,14 +202,23 @@ def create_claim(data):
 
     for key, value in data.items():
         if key in ALLOWED_FIELDS:
+            # Convert dicts to JSON strings
+            if isinstance(value, dict):
+                value = json.dumps(value)
             fields.append(key)
             placeholders.append("?")
             values.append(value)
-
+    
+    # Make sure score is primitive
+    if isinstance(score, dict):
+        score = score.get("score_value", 0)
+    
+    # Add score, status, created_at
     fields.extend(["score", "status", "created_at"])
     placeholders.extend(["?", "?", "?"])
-    values.extend([score, "pending", datetime.utcnow().isoformat()])
+    values.extend([score, "pending", datetime.now(timezone.utc).isoformat()])
 
+    # Construct and execute the INSERT query
     query = f"""
         INSERT INTO claims ({", ".join(fields)})
         VALUES ({", ".join(placeholders)})
