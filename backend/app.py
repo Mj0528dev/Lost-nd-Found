@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from helpers.user_helpers import create_user, get_user, verify_password
 from models import (
     create_lost_item,
     create_found_item,
@@ -11,8 +12,52 @@ from models import (
 
 app = Flask(__name__)
 
+# USER REGISTRATION
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
+
+    username = data.get("username")
+    password = data.get("password")
+    role = data.get("role", "user")
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    result = create_user(username, password, role)
+
+    if result.get("success"):
+        return jsonify(result), 201
+    else:
+        # Handles duplicates or database errors
+        return jsonify(result), 400
+
+# USER LOGIN
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
+
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    user = get_user(username)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if verify_password(password, user["password_hash"]):
+        return jsonify({"message": f"{username} logged in", "role": user["role"]})
+    else:
+        return jsonify({"error": "Invalid password"}), 401
+
 # LOST ITEM REPORT
-@app.route("/lost", methods=["POST"])
+@app.route("/api/lost", methods=["POST"])
 def report_lost_item():
     data = request.json or {}
 
@@ -50,7 +95,7 @@ def report_lost_item():
     return jsonify({"message": "Lost item reported successfully"}), 201
 
 # FOUND ITEM REPORT / LISTING
-@app.route("/found", methods=["GET", "POST"])
+@app.route("/api/found", methods=["GET", "POST"])
 def found_items():
 
     # POST method
@@ -89,7 +134,7 @@ def found_items():
     return jsonify(items), 200
 
 # SUBMIT CLAIM FOR FOUND ITEM
-@app.route("/claim", methods=["POST"])
+@app.route("/api/claim", methods=["POST"])
 def submit_claim():
     data = request.json or {}
 
@@ -100,15 +145,14 @@ def submit_claim():
 
     # Create claim
     claim_result, status = create_claim(data)
-    return jsonify(claim_result), status
-
+    return jsonify(claim_result), status 
 
 # ADMIN VIEW PENDING CLAIMS
-@app.route("/admin/claims", methods=["GET"])
+@app.route("/api/admin/claims", methods=["GET"])
 def view_pending_claims():
     return jsonify(get_pending_claims()), 200
 
-@app.route("/claims/<int:claim_id>", methods=["PATCH"])
+@app.route("/api/admin/claims/<id>/verify", methods=["PATCH"])
 def patch_claim(claim_id):
     data = request.get_json()
 
@@ -121,7 +165,7 @@ def patch_claim(claim_id):
 
     return jsonify(result), status
 
-@app.route("/admin/claims/<int:claim_id>/verify", methods=["POST"])
+@app.route("/api/admin/claims/<int:claim_id>/verify", methods=["POST"])
 def admin_verify_claim(claim_id):
     data = request.get_json()
 

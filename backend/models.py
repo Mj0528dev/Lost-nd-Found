@@ -1,5 +1,7 @@
 import json
 import sqlite3
+import hashlib
+import os   
 from datetime import datetime, timezone
 from services.claim_scoring import compute_claim_score
 
@@ -13,9 +15,22 @@ def get_db_connection():
     return conn
 
 # Initialize the database and create tables if they don't exist
+# NOTE: For production with multiple processes, use database migrations (Alembic, Flyway)
+# to ensure table creation runs only once and safely.
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # USERS TABLE
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            created_at TEXT NOT NULL
+        );
+    """)
 
     # LOST ITEMS TABLE
     cursor.execute("""
@@ -75,7 +90,7 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             created_at TEXT NOT NULL
-        )
+        );
     """)
 
     # AUDIT LOGS TABLE
@@ -87,67 +102,95 @@ def init_db():
             entity_id INTEGER NOT NULL,
             performed_by TEXT NOT NULL,
             timestamp TEXT NOT NULL
-        )
+        );
+    """)
+
+    # ADMIN ACTIONS TABLE
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admin_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_username TEXT NOT NULL,
+            claim_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            notes TEXT,
+            timestamp TEXT NOT NULL
+        );
     """)
 
     conn.commit()
     conn.close()
 
 def create_lost_item(data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Create a lost item record with error handling."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO lost_items (
-            category,
-            item_type,
-            last_seen_location,
-            last_seen_datetime,
-            public_description,
-            private_details,
-            status,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data["category"],
-        data.get("item_type", "Unknown"),
-        data["last_seen_location"],
-        data["lost_datetime"],
-        data["public_description"],
-        data.get("private_details"),
-        "published",
-        datetime.now(timezone.utc).isoformat()
-    ))
+        cursor.execute("""
+            INSERT INTO lost_items (
+                category,
+                item_type,
+                last_seen_location,
+                last_seen_datetime,
+                public_description,
+                private_details,
+                status,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data["category"],
+            data.get("item_type", "Unknown"),
+            data["last_seen_location"],
+            data["last_seen_datetime"],
+            data["public_description"],
+            data.get("private_details"),
+            "published",
+            datetime.now(timezone.utc).isoformat()
+        ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        return {"message": "Lost item created successfully", "item_id": cursor.lastrowid}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        conn.close()
 
 def create_found_item(data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Create a found item record with error handling."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        INSERT INTO found_items (
-            category, item_type, color, brand,
-            found_location, found_datetime,
-            public_description, status, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data["category"],
-        data.get("item_type", "Unknown"),
-        data.get("color"),
-        data.get("brand"),
-        data["found_location"],
-        data["found_datetime"],
-        data.get("public_description"),
-        "published",
-        datetime.now(timezone.utc).isoformat()
-    ))
+        cursor.execute("""
+            INSERT INTO found_items (
+                category, item_type, color, brand,
+                found_location, found_datetime,
+                public_description, status, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            data["category"],
+            data.get("item_type", "Unknown"),
+            data.get("color"),
+            data.get("brand"),
+            data["found_location"],
+            data["found_datetime"],
+            data.get("public_description"),
+            "published",
+            datetime.now(timezone.utc).isoformat()
+        ))
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        return {"message": "Found item created successfully", "item_id": cursor.lastrowid}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        conn.close()
 
 def get_published_found_items():
     conn = get_db_connection()
@@ -161,6 +204,7 @@ def get_published_found_items():
         ORDER BY created_at DESC
     """)
 
+    # Convert rows to dicts explicitly for consistency
     items = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return items
@@ -202,8 +246,8 @@ def create_claim(data):
 
     for key, value in data.items():
         if key in ALLOWED_FIELDS:
-            # Convert dicts to JSON strings
-            if isinstance(value, dict):
+            # Convert dicts, lists, and other complex types to JSON strings
+            if isinstance(value, (dict, list)):
                 value = json.dumps(value)
             fields.append(key)
             placeholders.append("?")
@@ -267,6 +311,7 @@ def get_pending_claims():
     rows = cursor.fetchall()
     conn.close()
 
+    # Convert rows to dicts explicitly for consistency
     return [dict(row) for row in rows]
 
 def update_claim_status(claim_id, new_status):
@@ -361,7 +406,10 @@ def verify_claim(claim_id, decision, admin_username):
         conn.close()
         return {"error": "Claim not found"}, 404
 
-    if row["status"] != "pending":
+    # Convert to dict explicitly for consistency (safe regardless of row_factory)
+    row_dict = dict(row) if row else None
+    
+    if row_dict["status"] != "pending":
         conn.close()
         return {"error": "Claim already processed"}, 400
 
@@ -393,6 +441,66 @@ def verify_claim(claim_id, decision, admin_username):
     conn.close()
 
     return {"message": f"Claim {decision} successfully"}, 200
+
+def hash_password(password: str) -> str:
+    """Return a salted hash of the password.
+    
+    NOTE: SHA-256 + salt is suitable for learning/development.
+    For production, use bcrypt or Argon2 for better security against brute-force attacks.
+    Example: bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+    """
+    salt = os.urandom(16).hex()
+    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
+    return f"{salt}${hashed}"
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify a password against stored hash.
+    
+    NOTE: This uses SHA-256. For production, use bcrypt or Argon2.
+    Example: bcrypt.checkpw(password.encode(), stored_hash)
+    """
+    try:
+        salt, hashed = stored_hash.split("$")
+        return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
+    except ValueError:
+        return False
+
+def create_user(username: str, password: str, role: str = "user"):
+    """Add a user safely, handle duplicate usernames."""
+    try:
+        conn = sqlite3.connect(DataBase)
+        c = conn.cursor()
+
+        password_hash = hash_password(password)
+
+        c.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            (username, password_hash, role, datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+        return {"message": f"User '{username}' created successfully", "username": username, "role": role}
+
+    except sqlite3.IntegrityError:
+        return {"error": f"Username '{username}' already exists"} 
+
+    except Exception as e:
+        return {"error": str(e)} 
+
+    finally:
+        conn.close() 
+
+def get_user(username: str):
+    """Fetch a user record by username."""
+    conn = get_db_connection()  # Use get_db_connection() for consistency with row_factory
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?",
+        (username,)
+    )
+    user = c.fetchone()
+    conn.close()
+    return dict(user) if user else None
+
 
 if __name__ == "__main__":
     init_db()
