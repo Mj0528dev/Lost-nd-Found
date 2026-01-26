@@ -1,64 +1,146 @@
-Lost & Found System (Backend Core)
+# Lost & Found System — Backend Core
 
-Overview
-This project is a backend core system for a Lost & Found application.
-It implements the data models, validation logic, claim scoring engine, audit logging, and admin verification workflow without an HTTP/API layer yet.
-The goal of this phase is correctness, structure, and testability of the backend logic before exposing it via an API.
-________________________________________
-Project Status
-Current Phase: v0.2.0 — Phase 1 Complete
-✅ Database schema
-✅ Model-layer business logic
-✅ Claim validation rules
-✅ Claim scoring engine
-✅ Admin claim verification
-✅ Audit logging
-✅ One-run integration test (no pytest)
-🚫 No HTTP / Flask API yet (planned for Phase 2)
-________________________________________
-Core Features Implemented
-Items
-•	Create and retrieve found items
-•	SQLite-backed persistence
-Claims
-•	Submit claims for found items
-•	Automatic rule-based claim scoring
-•	Claim status lifecycle (pending → approved / rejected)
-Validation
-•	Required-field enforcement
-•	Claim anomaly checks (e.g. no receipt, high amount, missing description)
-•	Centralized validation helpers
-Admin Actions
-•	Approve or reject claims
-•	Prevent double-processing of claims
-Audit Logging
-•	Every critical action is recorded in audit_logs
-•	Tracks:
-o	action
-o	entity type
-o	entity ID
-o	actor
-o	timestamp
-Testing
-•	Single-run integration test
-•	No pytest required
-•	Verifies:
-o	database initialization
-o	table creation
-o	found item creation & retrieval
-o	claim validation (positive & negative)
-o	claim scoring
-o	claim creation
-o	admin verification
-o	audit logging
-________________________________________
-Tech Stack
-•	Python 3
-•	SQLite
-•	Standard library only (no ORM)
-•	No web framework in this phase
-________________________________________
-Project Structure
+> A production-ready backend foundation for a Lost & Found platform, focused on **data integrity, validation, scoring logic, auditability, and testability**.
+
+---
+
+## 📌 Overview
+
+This project implements the **core backend logic** of a Lost & Found system **before** introducing an HTTP/API layer.
+
+Instead of starting with routes and UI, this system prioritizes:
+
+- Clean data modeling
+- Explicit validation
+- Deterministic business logic
+- Auditable admin actions
+- Repeatable integration testing
+
+This mirrors **real-world backend backend engineering practices**, where correctness and maintainability come first.
+
+---
+
+## 🎯 Why This Project Matters
+
+Many beginner projects jump straight to APIs and UIs.  
+This project intentionally **does not** — and that’s the point.
+
+It demonstrates:
+
+- Separation of concerns
+- Defensive programming
+- Clear domain modeling
+- Testable business logic
+- Readiness for future API layers
+
+Everything here can be exposed via REST **without refactoring**.
+
+---
+
+## 🧭 Project Status
+
+**Current Version:** `v0.2.0`  
+**Phase:** Backend Core (Phase 1.3) — Complete
+
+---
+
+## ✨ Core Features
+
+### 📦 Found Items
+
+- Create and persist found items
+- Retrieve items by ID
+- Normalized SQLite storage
+
+### 📝 Claims
+
+- Submit ownership claims for found items
+- Claims start in a `pending` state
+- Prevents invalid or duplicate processing
+
+### 🧮 Claim Scoring Engine
+
+- Rule-based weighted scoring
+- Supports exact and partial matches
+- Returns:
+  - Total score
+  - Matched fields
+  - Detailed breakdown
+
+This enables **explainable decisions** and **admin transparency**.
+
+### ✅ Claim Validation
+
+Centralized validation rules detect anomalies such as:
+
+- Missing receipts
+- Unusually high claim amounts
+- Missing descriptions
+
+Validation is **decoupled from persistence** and reusable.
+
+### 🛡 Admin Verification
+
+- Admins can approve or reject claims
+- Claims cannot be processed twice
+- Status transitions enforced at the model layer
+
+### 🧾 Audit Logging
+
+All critical actions are logged:
+
+- Claim creation
+- Admin decisions
+- System actions
+
+Each log stores:
+
+- Action
+- Entity type
+- Entity ID
+- Actor
+- Timestamp
+
+---
+
+## 🧪 Testing Strategy
+
+This project uses a **single-run integration test** (`test.py`) instead of pytest.
+
+### Why this approach?
+
+- No hidden fixtures
+- No test magic
+- Explicit execution order
+- Easy debugging
+
+### What is tested
+
+- Database initialization
+- Table creation
+- Found item creation & retrieval
+- Claim validation (positive & negative)
+- Claim scoring correctness
+- Claim creation
+- Admin verification
+- Audit log persistence
+
+The test exits immediately on failure with a **clear error message**.
+
+---
+
+## 🛠 Tech Stack
+
+- Python 3
+- SQLite
+- Python Standard Library
+- No ORM
+- No web framework (yet)
+
+---
+
+## 📁 Project Structure
+
 backend/
 │
 ├── app.py                  # Entry point (DB init hook)
@@ -80,51 +162,3 @@ backend/
 │   └── claim_scoring.py     # Rule-based scoring engine
 │
 └── database.db              # SQLite database (generated)
-________________________________________
-Setup Instructions
-1️ Create and activate a virtual environment
-python -m venv venv
-venv\Scripts\activate
-2️ Install dependencies
-pip install -r requirements.txt
-(If empty, this is expected for Phase 1)
-________________________________________
-3️ Initialize the database
-python app.py
-This will:
-•	create database.db
-•	initialize all required tables
-________________________________________
-4️ Run the full integration test
-Open a separate terminal and run:
-python test.py
-Expected final output:
-✅ ALL TESTS PASSED SUCCESSFULLY
-If a test fails, the script exits immediately with a clear error message indicating what broke and where.
-________________________________________
-How Testing Works (Important)
-•	This project intentionally does not use pytest
-•	The test script:
-o	runs against the real database
-o	truncates tables before testing
-o	validates real inserts, reads, updates, and logs
-•	Designed for clarity and debuggability, not test frameworks
-________________________________________
-Versioning & Git Workflow
-•	Stable releases are tagged (e.g. v0.2.0)
-•	Phase work is done on feature branches
-•	main remains clean and stable
-________________________________________
-Roadmap
-Phase 2 (Planned)
-•	Flask API layer
-•	HTTP routes mapping to existing logic
-•	Proper status codes & JSON responses
-Phase 3 (Optional)
-•	Authentication
-•	Role-based access
-•	Frontend or admin dashboard
-________________________________________
-Notes
-This repository represents a clean, testable backend foundation designed to be extended — not rewritten — when an API layer is added.
-
