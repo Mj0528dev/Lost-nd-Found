@@ -1,31 +1,11 @@
 import sqlite3
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
+from models.base import get_db_connection
 
-DB_PATH = "lostnfound.db"  # adjust path as needed
+DB_PATH = "database.db" 
 
-# ----------------------------
-# Database Initialization
-# ----------------------------
-def init_db():
-    """Create users table if it doesn't exist."""
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user',
-                created_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-
-
-# ----------------------------
 # User Helper Functions
-# ----------------------------
 def hash_password(password: str) -> str:
     """Hash a password using werkzeug."""
     return generate_password_hash(password)
@@ -83,3 +63,17 @@ def get_user(username: str):
                 "created_at": row[4]
             }
         return None
+
+def create_default_admin():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+    if cursor.fetchone() is None:
+        password_hash = hash_password("adminpassword")
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)",
+            ("admin", password_hash, "admin", datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+    conn.close()

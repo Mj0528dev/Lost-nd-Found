@@ -13,3 +13,20 @@ VALIDATION_RULES = [
     (high_amount, "Unusually high claim amount"),
     (missing_description, "Missing description"),
 ]
+
+
+def validate_claim_data(data):
+    """
+    Runs all claim validation rules.
+    Returns a list of error messages.
+    """
+    errors = []
+
+    for rule, message in VALIDATION_RULES:
+        try:
+            if rule(data):
+                errors.append(message)
+        except Exception as e:
+            errors.append(f"Validation error: {rule.__name__} failed")
+
+    return errors
