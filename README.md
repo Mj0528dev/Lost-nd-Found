@@ -1,161 +1,130 @@
-# Lost & Found System
+Lost & Found System (Backend Core)
 
-## Overview
-
-A simple backend system for reporting lost and found items, submitting ownership claims, and allowing admins to verify claims. The API follows proper HTTP semantics and supports clean database resets for repeatable testing.
-
-## Features
-
-* Report lost items
-* Report found items
-* Submit claims for found items
-* Automatic claim scoring
-* Admin review and verification of claims
-* Safe database reset and reinitialization
-
-## Tech Stack
-
-* Python
-* Flask
-* SQLite
-
-## Setup Instructions
-
-1. Create and activate a virtual environment
-2. Install dependencies
-3. Initialize the database
-4. Run the Flask app
-
-```bash
+Overview
+This project is a backend core system for a Lost & Found application.
+It implements the data models, validation logic, claim scoring engine, audit logging, and admin verification workflow without an HTTP/API layer yet.
+The goal of this phase is correctness, structure, and testability of the backend logic before exposing it via an API.
+________________________________________
+Project Status
+Current Phase: v0.2.0 — Phase 1 Complete
+✅ Database schema
+✅ Model-layer business logic
+✅ Claim validation rules
+✅ Claim scoring engine
+✅ Admin claim verification
+✅ Audit logging
+✅ One-run integration test (no pytest)
+🚫 No HTTP / Flask API yet (planned for Phase 2)
+________________________________________
+Core Features Implemented
+Items
+•	Create and retrieve found items
+•	SQLite-backed persistence
+Claims
+•	Submit claims for found items
+•	Automatic rule-based claim scoring
+•	Claim status lifecycle (pending → approved / rejected)
+Validation
+•	Required-field enforcement
+•	Claim anomaly checks (e.g. no receipt, high amount, missing description)
+•	Centralized validation helpers
+Admin Actions
+•	Approve or reject claims
+•	Prevent double-processing of claims
+Audit Logging
+•	Every critical action is recorded in audit_logs
+•	Tracks:
+o	action
+o	entity type
+o	entity ID
+o	actor
+o	timestamp
+Testing
+•	Single-run integration test
+•	No pytest required
+•	Verifies:
+o	database initialization
+o	table creation
+o	found item creation & retrieval
+o	claim validation (positive & negative)
+o	claim scoring
+o	claim creation
+o	admin verification
+o	audit logging
+________________________________________
+Tech Stack
+•	Python 3
+•	SQLite
+•	Standard library only (no ORM)
+•	No web framework in this phase
+________________________________________
+Project Structure
+backend/
+│
+├── app.py                  # Entry point (DB init hook)
+├── test.py                 # One-run integration test
+│
+├── models/
+│   ├── __init__.py
+│   ├── base.py              # DB connection & schema
+│   ├── items.py             # Found item logic
+│   ├── claims.py            # Claim lifecycle
+│   ├── audit.py             # Audit logging
+│   └── validators.py        # Core validators
+│
+├── helpers/
+│   ├── __init__.py
+│   └── claim_validation.py  # Claim anomaly rules
+│
+├── services/
+│   └── claim_scoring.py     # Rule-based scoring engine
+│
+└── database.db              # SQLite database (generated)
+________________________________________
+Setup Instructions
+1️ Create and activate a virtual environment
+python -m venv venv
+venv\Scripts\activate
+2️ Install dependencies
 pip install -r requirements.txt
-python -c "from models import init_db; init_db()"
+(If empty, this is expected for Phase 1)
+________________________________________
+3️ Initialize the database
 python app.py
-```
+This will:
+•	create database.db
+•	initialize all required tables
+________________________________________
+4️ Run the full integration test
+Open a separate terminal and run:
+python test.py
+Expected final output:
+✅ ALL TESTS PASSED SUCCESSFULLY
+If a test fails, the script exits immediately with a clear error message indicating what broke and where.
+________________________________________
+How Testing Works (Important)
+•	This project intentionally does not use pytest
+•	The test script:
+o	runs against the real database
+o	truncates tables before testing
+o	validates real inserts, reads, updates, and logs
+•	Designed for clarity and debuggability, not test frameworks
+________________________________________
+Versioning & Git Workflow
+•	Stable releases are tagged (e.g. v0.2.0)
+•	Phase work is done on feature branches
+•	main remains clean and stable
+________________________________________
+Roadmap
+Phase 2 (Planned)
+•	Flask API layer
+•	HTTP routes mapping to existing logic
+•	Proper status codes & JSON responses
+Phase 3 (Optional)
+•	Authentication
+•	Role-based access
+•	Frontend or admin dashboard
+________________________________________
+Notes
+This repository represents a clean, testable backend foundation designed to be extended — not rewritten — when an API layer is added.
 
-The API will be available at:
-
-```
-http://127.0.0.1:5000
-```
-
-## 🧪 API Testing Guide (Windows CMD – Single Line Commands)
-
-> All commands below are written as **single-line curl commands** compatible with Windows Command Prompt.
-
-### 1️⃣ Report a Lost Item
-
-```bash
-curl -X POST http://127.0.0.1:5000/lost -H "Content-Type: application/json" -d "{\"category\":\"Electronics\",\"last_seen_location\":\"Library\",\"lost_datetime\":\"2026-01-20T10:00:00\",\"public_description\":\"Black wireless earbuds\",\"private_details\":\"Scratch on left earbud\"}"
-```
-
-Expected response:
-
-```json
-{"message":"Lost item reported successfully"}
-```
-
----
-
-### 2️⃣ Report a Found Item
-
-```bash
-curl -X POST http://127.0.0.1:5000/found -H "Content-Type: application/json" -d "{\"category\":\"Electronics\",\"found_location\":\"Library\",\"found_datetime\":\"2026-01-20T11:00:00\",\"public_description\":\"Found black earbuds near table\"}"
-```
-
-Expected response:
-
-```json
-{"message":"Found item reported successfully"}
-```
-
----
-
-### 3️⃣ Submit a Claim for the Found Item
-
-```bash
-curl -X POST http://127.0.0.1:5000/claim -H "Content-Type: application/json" -d "{\"found_item_id\":1,\"category\":\"Electronics\",\"last_seen_location\":\"Library\",\"lost_datetime\":\"2026-01-20T10:00:00\",\"private_details\":\"Scratch on left earbud\"}"
-```
-
-Expected response:
-
-```json
-{"message":"Claim submitted successfully","score":0}
-```
-
----
-
-### 4️⃣ Admin: View Pending Claims
-
-```bash
-curl http://127.0.0.1:5000/admin/claims
-```
-
-Expected response: list of pending claims with score and status.
-
----
-
-### 5️⃣ Admin: Verify (Approve) a Claim
-
-```bash
-curl -X POST http://127.0.0.1:5000/admin/claims/1/verify -H "Content-Type: application/json" -d "{\"decision\":\"approved\",\"admin_username\":\"admin1\"}"
-```
-
-Expected response:
-
-```json
-{"message":"Claim approved successfully"}
-```
-
----
-
-### 6️⃣ Confirm Claim Is No Longer Pending
-
-```bash
-curl http://127.0.0.1:5000/admin/claims
-```
-
-Expected response:
-
-```json
-[]
-```
-
----
-
-### 7️⃣ Attempt to Re-verify a Processed Claim (Expected Error)
-
-```bash
-curl -X POST http://127.0.0.1:5000/admin/claims/1/verify -H "Content-Type: application/json" -d "{\"decision\":\"rejected\",\"admin_username\":\"admin2\"}"
-```
-
-Expected response:
-
-```json
-{"error":"Claim already processed"}
-```
-
----
-
-### 8️⃣ View Found Items
-
-```bash
-curl http://127.0.0.1:5000/found
-```
-
-Expected response: list of found items stored in the system.
-
----
-
-### ⚠ Expected HTTP Errors
-
-* `GET /found` without POST → **405 Method Not Allowed** (correct behavior)
-* Invalid routes → **404 Not Found**
-* Missing required fields → **400 Bad Request**
-
-## Future Improvements
-
-* User authentication
-* Role-based admin access
-* Partial-match claim scoring UI
-* Admin dashboard (frontend)
-* Image uploads for items
