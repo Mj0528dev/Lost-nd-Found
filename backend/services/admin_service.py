@@ -1,5 +1,3 @@
-# backend/services/admin_service.py
-
 from backend.models import (
     get_pending_claims,
     verify_claim,
