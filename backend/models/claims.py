@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from .audit import log_action
 from .items import get_found_item_by_id
-from services.claim_scoring import compute_claim_score
+from backend.services.claim_scoring import compute_claim_score
 from .base import get_db_connection
 from .validators import (
     ValidationError,

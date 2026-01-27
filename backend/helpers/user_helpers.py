@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
-from models.base import get_db_connection
+from backend.models.base import get_db_connection
 
 DB_PATH = "database.db" 
 

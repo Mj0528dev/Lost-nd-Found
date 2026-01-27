@@ -1,11 +1,11 @@
 import sys
 from datetime import datetime, timezone
-from models.base import init_db, get_db_connection
-from models.items import create_found_item, get_found_item_by_id
-from models.claims import create_claim, verify_claim
-from models.audit import log_action
-from helpers.claim_validation import validate_claim_data
-from services.claim_scoring import compute_claim_score
+from backend.models.base import init_db, get_db_connection
+from backend.models.items import create_found_item, get_found_item_by_id
+from backend.models.claims import create_claim, verify_claim
+from backend.models.audit import log_action
+from backend.helpers.claim_validation import validate_claim_data
+from backend.services.claim_scoring import compute_claim_score
 
 
 # ==================================================

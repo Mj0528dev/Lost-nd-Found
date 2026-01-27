@@ -1,4 +1,4 @@
-from config.claim_scoring import SCORING_RULES
+from backend.config.claim_scoring import SCORING_RULES
 
 def normalize(value):
     return value.strip().lower() if value else ""
