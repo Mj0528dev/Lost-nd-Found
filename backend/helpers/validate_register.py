@@ -1,37 +1,21 @@
-from backend.models.validators import ValidationError
+from backend.models import ValidationError
 
-def validate_registration_data(data: dict) -> dict:
+def validate_registration_data(data: dict):
     """
-    Validates registration input data.
-    
-    Args:
-        data (dict): JSON payload from client
-
-    Returns:
-        dict: Cleaned data with 'username', 'password', and 'role'
-
-    Raises:
-        ValidationError: if JSON is missing or required fields are absent
+    Validates registration data for user-friendly error messages.
+    Raises ValidationError if invalid.
     """
     if not data:
-        raise ValidationError(
-            message="Request body is required.",
-            status_code=400
-        )
-    
+        raise ValidationError("Missing registration data. Provide JSON body with 'username' and 'password'.")
+
     username = data.get("username")
     password = data.get("password")
-    role = data.get("role", "user")  # default to 'user'
 
-    if not username or not password:
-        raise ValidationError(
-            message="Username and password are required.",
-            status_code=400
-        )
-    
-    # Return cleaned dict for direct consumption by create_user()
-    return {
-        "username": username.strip(),
-        "password": password,
-        "role": role
-    }
+    if not username:
+        raise ValidationError("Username is required. Choose a unique identifier for login.")
+
+    if not password:
+        raise ValidationError("Password is required. Make sure to include a secure password.")
+
+    if len(password) < 6:
+        raise ValidationError("Password too short. Minimum 6 characters required.")

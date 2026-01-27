@@ -3,30 +3,20 @@ from flask_jwt_extended import create_access_token
 
 from backend.helpers.response import success_response, error_response
 from backend.models import ValidationError
-from backend.helpers.validate_register import validate_registration_data
-from backend.helpers.user_helpers import create_user, get_user, verify_password
+from backend.helpers.user_helpers import get_user, verify_password
+from backend.services.auth_service import register_user
 
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
+    data = request.get_json() or {}
     try:
-        user_data = validate_registration_data(request.get_json())
-        result = create_user(**user_data)
-        
-        if result.get("message"):
-            # create JWT token
-            token = create_access_token(
-                identity=user_data["username"],
-                additional_claims={"role": user_data["role"]}
-            )
-            return jsonify(success_response({"token": token, "message": result["message"]})), 201
-        
-        return jsonify(error_response("CONFLICT", result.get("error", "Registration failed"))), 400
-
+        result, status = register_user(data)
+        return jsonify(success_response(result)), status
     except ValidationError as ve:
-        return jsonify(error_response("VALIDATION_ERROR", ve.message)), ve.status_code
-    
+        return jsonify(error_response("VALIDATION_ERROR", ve.message)), 400
+
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
