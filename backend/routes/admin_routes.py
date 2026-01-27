@@ -42,8 +42,10 @@ def view_claims():
 def verify_claim_route(claim_id):
     data = request.json or {}
     try:
+        identity = get_jwt_identity()
+        admin_user_id = identity["user_id"]  # minimal JWT identity
         result, status = process_claim_verification(
-            claim_id, data, get_jwt_identity()
+            claim_id, data, admin_user_id  # pass user_id instead of full object
         )
         return jsonify(success_response(result)), status
     except ValidationError as ve:

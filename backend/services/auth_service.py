@@ -1,27 +1,25 @@
-from backend.helpers.user_helpers import get_user, verify_password, create_user
+from backend.helpers.user_helpers import create_user, get_user, verify_password
 from backend.models import ValidationError
 from flask_jwt_extended import create_access_token
+from backend.helpers.validate_register import validate_registration_data
 
 # Simple in-memory revoked tokens store
 revoked_tokens = set()
 
-
 def register_user(data: dict):
     """Handles user registration"""
-    from backend.helpers.validate_register import validate_registration_data
 
     validate_registration_data(data)
-
     username = data.get("username")
     password = data.get("password")
     role = data.get("role", "user")
 
-    result = create_user(username, password, role)  # from helpers
+    result = create_user(username, password, role)
 
-    if result.get("message"):
-        # Use minimal JWT identity (user_id + role)
-        identity = {"user_id": result["user_id"], "role": role}
-        token = create_access_token(identity=identity)
+    if "user_id" in result:
+        token = create_access_token(
+            identity={"user_id": result["user_id"], "role": role}
+        )
         return {"token": token, "message": result["message"]}, 201
 
     raise ValidationError(result.get("error", "Registration failed"))
@@ -30,27 +28,22 @@ def register_user(data: dict):
 def login_user(data: dict):
     """Handles login"""
     if not data:
-        raise ValidationError(
-            "Missing login data. Provide JSON body with 'username' and 'password'."
-        )
+        raise ValidationError("Missing login data. Provide JSON body with 'username' and 'password'.")
 
     username = data.get("username")
     password = data.get("password")
 
     if not username or not password:
-        raise ValidationError(
-            "Username and password are required for login."
-        )
+        raise ValidationError("Username and password are required for login.")
 
     user = get_user(username)
     if not user or not verify_password(password, user["password_hash"]):
-        raise ValidationError(
-            "Invalid username or password. Please check your credentials."
-        )
+        raise ValidationError("Invalid username or password.")
 
     # Minimal JWT identity
-    identity = {"user_id": user["id"], "role": user["role"]}
-    token = create_access_token(identity=identity)
+    token = create_access_token(
+        identity={"user_id": user["id"], "role": user["role"]}
+    )
     return {"token": token, "message": "Login successful"}, 200
 
 def refresh_token(identity):
