@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timezone
 from werkzeug.security import generate_password_hash, check_password_hash
-from models.base import get_db_connection
+from backend.models.base import get_db_connection
 
 DB_PATH = "database.db" 
 
@@ -19,12 +19,8 @@ def create_user(username: str, password: str, role: str = "user"):
     """Add a user to the users table safely and handle duplicates."""
     try:
         hashed_password = hash_password(password)
-        
-        # Use context manager to safely open/close connection
         with sqlite3.connect(DB_PATH, timeout=10) as conn:
             c = conn.cursor()
-            
-            # Try inserting user
             try:
                 c.execute(
                     """
@@ -34,18 +30,16 @@ def create_user(username: str, password: str, role: str = "user"):
                     (username, hashed_password, role, datetime.now(timezone.utc).isoformat())
                 )
                 conn.commit()
-                return {"message": "User created successfully"}
-            
+                user_id = c.lastrowid
+                return {"user_id": user_id, "message": "User created successfully"}
+
             except sqlite3.IntegrityError:
-                # This happens if the username already exists
                 return {"error": "Username already exists"}
-    
+
     except sqlite3.OperationalError as e:
-        # Handle rare DB lock or other operational errors
         return {"error": f"Database error: {str(e)}"}
-    
+
     except Exception as e:
-        # Catch-all for unexpected errors
         return {"error": f"Unexpected error: {str(e)}"}
     
 def get_user(username: str):

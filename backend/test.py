@@ -1,11 +1,13 @@
 import sys
 from datetime import datetime, timezone
-from models.base import init_db, get_db_connection
-from models.items import create_found_item, get_found_item_by_id
-from models.claims import create_claim, verify_claim
-from models.audit import log_action
-from helpers.claim_validation import validate_claim_data
-from services.claim_scoring import compute_claim_score
+
+from backend.models.base import init_db, get_db_connection
+from backend.models.items import create_found_item, get_found_item_by_id
+from backend.models.claims import create_claim, verify_claim
+from backend.models.audit import log_action
+from backend.helpers.claim_validation import validate_claim_data
+from backend.services.claim_scoring import compute_claim_score
+from backend.helpers.user_helpers import create_default_admin
 
 
 # ==================================================
@@ -19,17 +21,17 @@ def fail(msg):
 def pass_test(msg):
     print(f"[PASS] {msg}")
 
+
 # ==================================================
-# 0️⃣ CLEANUP EXISTING TABLES (FOR MULTIPLE TEST RUNS)
+# 0️⃣ DATABASE CLEANUP
 # ==================================================
+
 print("\n--- DATABASE CLEANUP ---")
 try:
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Disable foreign key checks temporarily
     cursor.execute("PRAGMA foreign_keys = OFF;")
-    conn.commit()
 
     tables = [
         "users",
@@ -43,17 +45,17 @@ try:
 
     for table in tables:
         cursor.execute(f"DELETE FROM {table};")
-        cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{table}';")  # reset AUTOINCREMENT
+        cursor.execute(f"DELETE FROM sqlite_sequence WHERE name='{table}';")
 
-    # Re-enable foreign key checks
     cursor.execute("PRAGMA foreign_keys = ON;")
     conn.commit()
     conn.close()
 
-    pass_test("Database cleanup completed (all tables truncated)")
+    pass_test("Database cleanup completed")
 
 except Exception as e:
     fail(f"Database cleanup failed → {e}")
+
 
 # ==================================================
 # 1️⃣ DATABASE INIT
@@ -62,7 +64,8 @@ except Exception as e:
 print("\n--- DATABASE INITIALIZATION ---")
 try:
     init_db()
-    pass_test("Database initialized")
+    create_default_admin()
+    pass_test("Database initialized + default admin created")
 except Exception as e:
     fail(f"Database init failed → {e}")
 
@@ -72,21 +75,21 @@ except Exception as e:
 # ==================================================
 
 print("\n--- TABLE CHECK ---")
-tables = [
-    "users",
-    "admins",
-    "lost_items",
-    "found_items",
-    "claims",
-    "audit_logs",
-    "admin_actions"
-]
-
 try:
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    for table in tables:
+    required_tables = [
+        "users",
+        "admins",
+        "lost_items",
+        "found_items",
+        "claims",
+        "audit_logs",
+        "admin_actions"
+    ]
+
+    for table in required_tables:
         cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
             (table,)
@@ -95,10 +98,11 @@ try:
             fail(f"Missing table: {table}")
 
     conn.close()
-    pass_test("All tables exist")
+    pass_test("All required tables exist")
 
 except Exception as e:
     fail(f"Table check failed → {e}")
+
 
 # ==================================================
 # 3️⃣ CREATE FOUND ITEM
@@ -113,11 +117,10 @@ try:
         "brand": "Samsung",
         "found_location": "Library",
         "found_datetime": datetime.now(timezone.utc).isoformat(),
-        "public_description": "Black Samsung phone found near the entrance."
+        "public_description": "Black Samsung phone near the entrance"
     })
 
-    found_item_id = result.get("item_id")  # <-- extract the actual ID
-
+    found_item_id = result.get("item_id")
     if not found_item_id:
         fail("Found item ID not returned")
 
@@ -125,6 +128,7 @@ try:
 
 except Exception as e:
     fail(f"Create found item failed → {e}")
+
 
 # ==================================================
 # 4️⃣ GET FOUND ITEM
@@ -147,7 +151,7 @@ except Exception as e:
 
 
 # ==================================================
-# 5️⃣ CLAIM VALIDATION (HELPER)
+# 5️⃣ CLAIM VALIDATION
 # ==================================================
 
 print("\n--- CLAIM VALIDATION ---")
@@ -157,18 +161,16 @@ valid_claim = {
     "claimed_category": "Electronics",
     "claimed_item_type": "Phone",
     "claimed_color": "Black",
-    "receipt": True,                
-    "description": "Claim for lost phone",  
-    "amount": 1000                 
+    "receipt": True,
+    "description": "Lost my Samsung phone",
+    "amount": 1000
 }
 
-
 errors = validate_claim_data(valid_claim)
-
 if errors:
     fail(f"Unexpected validation errors → {errors}")
 
-pass_test("Claim validation passed (no errors)")
+pass_test("Valid claim passed validation")
 
 print("\n--- CLAIM VALIDATION (NEGATIVE CASE) ---")
 
@@ -190,7 +192,7 @@ for err in expected_errors:
     if err not in errors:
         fail(f"Expected error missing → {err}")
 
-pass_test("Invalid claim correctly returned validation errors")
+pass_test("Invalid claim returned expected validation errors")
 
 
 # ==================================================
@@ -199,21 +201,17 @@ pass_test("Invalid claim correctly returned validation errors")
 
 print("\n--- CLAIM SCORING ---")
 try:
-    score_result = compute_claim_score(
-        valid_claim,
-        item
-    )
+    score = compute_claim_score(valid_claim, item)
 
-    # Use the total score for checks
-    total_score = int(score_result.get("total"))
-
-    if not isinstance(total_score, (int, float)):
+    total = score.get("total")
+    if not isinstance(total, (int, float)):
         fail("Score total is not numeric")
 
-    pass_test(f"Claim score computed ({total_score})")
+    pass_test(f"Claim score computed (total={total})")
 
 except Exception as e:
     fail(f"Claim scoring failed → {e}")
+
 
 # ==================================================
 # 7️⃣ CREATE CLAIM
@@ -233,11 +231,11 @@ try:
     if status != 201:
         fail(f"Claim creation failed → {result}")
 
-    claim_id = result.get("claim_id")  # <-- extract claim_id from returned dict
+    claim_id = result.get("claim_id")
     if not claim_id:
-        fail("Claim ID not returned after creation")
+        fail("Claim ID not returned")
 
-    pass_test(f"Claim created successfully (id={claim_id})")
+    pass_test(f"Claim created (id={claim_id})")
 
 except Exception as e:
     fail(f"Create claim failed → {e}")
@@ -250,15 +248,15 @@ except Exception as e:
 print("\n--- CLAIM VERIFICATION ---")
 try:
     result, status = verify_claim(
-        claim_id=claim_id,            # use actual created claim ID
+        claim_id=claim_id,
         decision="approved",
-        admin_username="system_test"
+        admin_username="admin"
     )
 
     if status != 200:
         fail(f"Verify claim failed → {result}")
 
-    pass_test(f"Claim verified successfully (id={claim_id})")
+    pass_test("Claim verified successfully")
 
 except Exception as e:
     fail(f"Verify claim crashed → {e}")
@@ -273,14 +271,17 @@ try:
     log_action(
         action="TEST_RUN",
         entity_type="claim",
-        entity_id=claim_id,          # use actual claim ID
+        entity_id=claim_id,
         performed_by="test_runner",
-        notes="Manual integration test"
+        notes="Phase 3 integration test"
     )
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM audit_logs WHERE entity_id=?", (claim_id,))
+    cursor.execute(
+        "SELECT COUNT(*) FROM audit_logs WHERE entity_id=?",
+        (claim_id,)
+    )
     count = cursor.fetchone()[0]
     conn.close()
 
@@ -293,4 +294,4 @@ except Exception as e:
     fail(f"Audit logging failed → {e}")
 
 
-print("\n✅ ALL TESTS PASSED SUCCESSFULLY")
+print("\n✅ ALL PHASE 3 TESTS PASSED SUCCESSFULLY")
